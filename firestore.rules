@@ -1,0 +1,141 @@
+rules_version = '2';
+
+// =====================================================================
+//  Reguli de securitate – Matematică Veselă
+//  UID-ul de administrator e deja pus mai jos (funcția isAdmin).
+//  Lipește tot fișierul în Firebase Console → Firestore → Rules → Publish.
+//
+//  Cine ce poate face:
+//   • administrator (un singur UID): creează / activează / dezactivează profesori,
+//     vede tot.
+//   • profesor (are document activ în /teachers, creat DOAR de administrator):
+//     își creează clase, adaugă / șterge elevi, vede fișele elevilor lui.
+//   • copil (autentificat anonim): citește clasa al cărei cod îl știe și lista
+//     de nume, și își poate adăuga puncte doar prin trimiterea unei fișe.
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.uid == 'h57UZDmgtMYmOu9CJG3CSZP2qeU2';
+    }
+
+    function isTeacher() {
+      let path = /databases/$(database)/documents/teachers/$(request.auth.uid);
+      return signedIn() && exists(path) && get(path).data.active == true;
+    }
+
+    function ownsClass(code) {
+      return isTeacher()
+        && get(/databases/$(database)/documents/classes/$(code)).data.teacherUid == request.auth.uid;
+    }
+
+    // Copilul trimite o fișă: punctele pot crește doar cu cât se poate câștiga
+    // pe o fișă (max 10 × 10 × 4 + 50 = 450), iar fișele cresc exact cu 1.
+    function validSheetUpdate() {
+      let d = request.resource.data;
+      let o = resource.data;
+      return signedIn()
+        && d.diff(o).affectedKeys().hasOnly(
+             ['points', 'sheets', 'perfect', 'correct', 'answered', 'recent', 'lastLabel', 'lastActive'])
+        && d.sheets == o.sheets + 1
+        && d.points is int && d.points >= o.points && d.points <= o.points + 450
+        && d.correct is int && d.correct >= o.correct && d.correct <= o.correct + 10
+        && d.answered is int && d.answered >= o.answered + 1 && d.answered <= o.answered + 10
+        && d.perfect is int && d.perfect >= o.perfect && d.perfect <= o.perfect + 1
+        && d.recent is list && d.recent.size() <= 10
+        && d.lastLabel is string && d.lastLabel.size() <= 100
+        && d.lastActive == request.time;
+    }
+
+    function validResult(code, sid) {
+      let r = request.resource.data;
+      return signedIn()
+        && exists(/databases/$(database)/documents/classes/$(code)/students/$(sid))
+        && r.keys().hasOnly(['date', 'label', 'type', 'correct', 'total', 'points', 'items'])
+        && r.date == request.time
+        && r.label is string && r.label.size() <= 100
+        && r.type is string && r.type.size() <= 30
+        && r.total is int && r.total >= 1 && r.total <= 10
+        && r.correct is int && r.correct >= 0 && r.correct <= r.total
+        && r.points is int && r.points >= 0 && r.points <= 450
+        && r.items is list && r.items.size() <= 10;
+    }
+
+    function validStudent(d) {
+      return d.name is string && d.name.size() >= 1 && d.name.size() <= 40
+        && d.points == 0 && d.sheets == 0 && d.perfect == 0 && d.correct == 0 && d.answered == 0;
+    }
+
+    // ---------- Profesori: scrie doar administratorul ----------
+    match /teachers/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      // grade = clasa la care predă (0 = pregătitoare … 4 = a IV-a), folosită pentru Comper;
+      // gradeYear = anul școlar în care a fost setată (de acolo crește singură în fiecare septembrie)
+      allow create, update: if isAdmin()
+        && (!('grade' in request.resource.data)
+            || (request.resource.data.grade is int && request.resource.data.grade >= 0 && request.resource.data.grade <= 4))
+        && (!('gradeYear' in request.resource.data) || request.resource.data.gradeYear == null
+            || request.resource.data.gradeYear is int);
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Profesori șterși: contul de autentificare se șterge singur ----------
+    // Administratorul pune marcajul când șterge profesorul. Profesorul își vede doar
+    // propriul marcaj și și-l poate scoate / pune la loc când își șterge contul.
+    match /deletedTeachers/{uid} {
+      allow read, delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow update: if isAdmin();
+    }
+
+    // ---------- Clase (ID-ul documentului = codul clasei) ----------
+    match /classes/{code} {
+      // oricine știe codul poate vedea numele clasei; lista tuturor claselor NU
+      allow get: if signedIn();
+      allow list: if isAdmin() || (isTeacher() && resource.data.teacherUid == request.auth.uid);
+
+      // clasa (pregătitoare – a IV-a, pentru Comper) vine din contul profesorului,
+      // setat de administrator; profesorul nu o poate schimba
+      allow create: if isTeacher()
+        && request.resource.data.teacherUid == request.auth.uid
+        && request.resource.data.get('grade', null)
+           == get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.get('grade', null)
+        && request.resource.data.get('gradeYear', null)
+           == get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.get('gradeYear', null)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 60;
+      allow update: if isAdmin()
+        || (isTeacher() && resource.data.teacherUid == request.auth.uid
+            && request.resource.data.teacherUid == request.auth.uid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['grade', 'gradeYear']));
+      allow delete: if isAdmin() || (isTeacher() && resource.data.teacherUid == request.auth.uid);
+
+      // ---------- Elevi ----------
+      match /students/{sid} {
+        allow read: if signedIn();
+        allow create: if (isAdmin() || ownsClass(code)) && validStudent(request.resource.data);
+        allow delete: if isAdmin() || ownsClass(code);
+        allow update: if isAdmin() || ownsClass(code) || validSheetUpdate();
+
+        // ---------- Fișele rezolvate (cu răspunsurile copilului) ----------
+        match /results/{rid} {
+          allow read, delete: if isAdmin() || ownsClass(code);
+          allow create: if validResult(code, sid);
+          allow update: if false;
+        }
+      }
+    }
+
+    // orice altceva: interzis
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

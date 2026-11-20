@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Profesor – Matematică Veselă</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧑‍🏫</text></svg>">
+</head>
+<body class="staff">
+  <header class="topbar">
+    <a class="logo" href="index.html">🧮 <span>Matematică Veselă · Profesor</span></a>
+    <div class="who" id="who" hidden>
+      <span class="who-name" id="who-name"></span>
+      <button class="btn small ghost" id="pass-btn" type="button" aria-label="Schimbă parola"><span class="hide-sm">Schimbă parola</span><span class="show-sm">🔑 Parola</span></button>
+      <button class="btn small ghost" id="logout-btn" type="button">Ieșire</button>
+    </div>
+  </header>
+
+  <main class="wide">
+    <p class="loading" id="view-loading">⏳ Se încarcă…</p>
+
+    <section id="view-off" class="narrow card" hidden>
+      <h1>Încă nu e configurat</h1>
+      <p>Site-ul nu este conectat la Firebase. Completează <code>firebase-config.js</code> după pașii din README.</p>
+    </section>
+
+    <!-- ===== Autentificare ===== -->
+    <section id="view-login" class="narrow" hidden>
+      <form class="card" id="login-form">
+        <h1>Autentificare profesor 🧑‍🏫</h1>
+        <label class="field"><span>Email</span><input type="email" id="login-email" autocomplete="username" required></label>
+        <label class="field"><span>Parolă</span><input type="password" id="login-pass" autocomplete="current-password" required></label>
+        <p class="error" id="login-error" hidden></p>
+        <p class="note ok-note" id="login-info" hidden></p>
+        <button class="btn primary big full" type="submit" id="login-btn">Intră</button>
+        <button class="btn ghost small full mt" type="button" id="forgot-btn">Am uitat parola</button>
+        <p class="muted small-text mt">Conturile de profesor sunt create doar de administrator.</p>
+      </form>
+    </section>
+
+    <section id="view-denied" class="narrow card" hidden>
+      <h1>Fără acces</h1>
+      <p id="denied-text">Acest cont nu este (sau nu mai este) cont de profesor. Contactează administratorul.</p>
+      <button class="btn primary" id="denied-logout" type="button">Ieșire</button>
+    </section>
+
+    <!-- ===== Panou profesor ===== -->
+    <section id="view-dash" hidden>
+      <div class="dash">
+        <aside class="card side">
+          <h2>Clasele mele</h2>
+          <ul class="class-list" id="class-list"></ul>
+          <p class="muted small-text" id="no-classes">Nu ai încă nicio clasă.</p>
+          <form id="new-class-form" class="mt" autocomplete="off">
+            <label class="field"><span>Clasă nouă</span><input type="text" id="new-class-name" maxlength="60" placeholder="ex: Clasa a II-a B" required></label>
+            <p class="error" id="class-error" hidden></p>
+            <button class="btn primary full" type="submit">➕ Creează clasa</button>
+          </form>
+        </aside>
+
+        <div class="panel">
+          <div class="card empty-panel" id="no-selection">
+            <h2>Bun venit! 👋</h2>
+            <p class="muted">Creează o clasă în stânga. Vei primi un <b>cod</b> pe care îl dai copiilor: ei îl scriu pe pagina principală și își aleg numele din listă.</p>
+          </div>
+
+          <div id="class-detail" hidden>
+            <div class="card class-head">
+              <div>
+                <h1 id="cd-name" class="left"></h1>
+                <p class="muted">Cod pentru copii: <span class="code-badge" id="cd-code"></span>
+                  <button class="btn small ghost" type="button" id="copy-code">Copiază</button></p>
+                <p class="muted small-text" id="cd-grade"></p>
+              </div>
+              <button class="btn small ghost danger" type="button" id="delete-class">Șterge clasa</button>
+            </div>
+
+            <div class="stats">
+              <div class="stat"><b id="cs-students">0</b><span>elevi</span></div>
+              <div class="stat"><b id="cs-sheets">0</b><span>fișe rezolvate</span></div>
+              <div class="stat"><b id="cs-percent">–</b><span>răspunsuri corecte</span></div>
+              <div class="stat"><b id="cs-active">0</b><span>activi în ultimele 7 zile</span></div>
+            </div>
+
+            <div class="card mt">
+              <div class="row-between">
+                <h2>Elevi</h2>
+                <label class="sort">Ordonează:
+                  <select id="sort-by">
+                    <option value="name">după nume</option>
+                    <option value="points">după puncte</option>
+                    <option value="active">după activitate</option>
+                    <option value="percent">după % corecte</option>
+                  </select>
+                </label>
+              </div>
+              <div class="table-wrap">
+                <table class="table cards" id="students-table">
+                  <thead>
+                    <tr><th>Elev</th><th>Puncte</th><th>Fișe</th><th>Corecte</th><th>Ultima activitate</th><th>Ultima fișă</th><th></th></tr>
+                  </thead>
+                  <tbody id="students-body"></tbody>
+                </table>
+              </div>
+              <p class="muted" id="no-students">Încă nu ai adăugat elevi.</p>
+            </div>
+
+            <div class="card" id="student-detail" hidden>
+              <div class="row-between">
+                <h2 id="sd-title"></h2>
+                <button class="btn small ghost" type="button" id="sd-close">Închide ✕</button>
+              </div>
+              <div id="sd-cats" class="cats"></div>
+              <h3 class="mt">Fișe rezolvate</h3>
+              <p class="muted" id="sd-empty" hidden>Nu a rezolvat încă nicio fișă.</p>
+              <ul class="results" id="sd-results"></ul>
+            </div>
+
+            <form class="card" id="add-students-form">
+              <h2>Adaugă elevi</h2>
+              <p class="muted">Scrie câte un nume pe fiecare rând (de preferat doar prenumele și inițiala, ex: „Ana M.”).</p>
+              <textarea id="new-students" rows="5" placeholder="Ana M.&#10;Matei P.&#10;Ioana R."></textarea>
+              <p class="error" id="students-error" hidden></p>
+              <button class="btn primary mt" type="submit">➕ Adaugă</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="profesor.js"></script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Administrare – Matematică Veselă</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
+</head>
+<body class="staff admin">
+  <header class="topbar">
+    <span class="logo">🔐 <span>Consolă de administrare</span></span>
+    <div class="who" id="who" hidden>
+      <span class="who-name" id="who-name"></span>
+      <button class="btn small ghost" id="logout-btn" type="button">Ieșire</button>
+    </div>
+  </header>
+
+  <main class="wide">
+    <p class="loading" id="view-loading">⏳ Se încarcă…</p>
+
+    <section id="view-off" class="narrow card" hidden>
+      <h1>Încă nu e configurat</h1>
+      <p>Completează <code>firebase-config.js</code> (inclusiv <code>ADMIN_UID</code>) după pașii din README.</p>
+    </section>
+
+    <section id="view-login" class="narrow" hidden>
+      <form class="card" id="login-form">
+        <h1>Administrator</h1>
+        <label class="field"><span>Email</span><input type="email" id="login-email" autocomplete="username" required></label>
+        <label class="field"><span>Parolă</span><input type="password" id="login-pass" autocomplete="current-password" required></label>
+        <p class="error" id="login-error" hidden></p>
+        <button class="btn primary big full" type="submit" id="login-btn">Intră</button>
+      </form>
+    </section>
+
+    <section id="view-denied" class="narrow card" hidden>
+      <h1>Acces interzis ⛔</h1>
+      <p>Acest cont nu are drept de administrare.</p>
+      <button class="btn primary" id="denied-logout" type="button">Ieșire</button>
+    </section>
+
+    <section id="view-dash" hidden>
+      <p class="message" id="busy" hidden></p>
+      <div class="admin-grid">
+        <form class="card" id="new-teacher-form" autocomplete="off">
+          <h2>➕ Cont nou de profesor</h2>
+          <label class="field"><span>Nume afișat</span><input type="text" id="t-name" maxlength="60" placeholder="ex: Prof. Maria Popescu" required></label>
+          <label class="field"><span>Email</span><input type="email" id="t-email" required autocomplete="off"></label>
+          <label class="field"><span>Clasa la care predă (pentru testele Comper)</span>
+            <select id="t-grade" required>
+              <option value="">– alege –</option>
+              <option value="0">Clasa pregătitoare</option>
+              <option value="1">Clasa I</option>
+              <option value="2">Clasa a II-a</option>
+              <option value="3">Clasa a III-a</option>
+              <option value="4">Clasa a IV-a</option>
+            </select>
+          </label>
+          <label class="field"><span>Parolă temporară</span>
+            <span class="code-row">
+              <input type="text" id="t-pass" minlength="8" required autocomplete="new-password" spellcheck="false">
+              <button class="btn" type="button" id="gen-pass">Generează</button>
+            </span>
+          </label>
+          <p class="error" id="t-error" hidden></p>
+          <button class="btn primary full" type="submit" id="t-submit">Creează contul</button>
+          <div class="note ok-note mt" id="t-done" hidden></div>
+        </form>
+
+        <div class="card">
+          <h2>Profesori</h2>
+          <div class="table-wrap">
+            <table class="table cards">
+              <thead><tr><th>Nume</th><th>Email</th><th>Clasa (Comper)</th><th>Clase</th><th>Stare</th><th>Creat</th><th></th></tr></thead>
+              <tbody id="teachers-body"></tbody>
+            </table>
+          </div>
+          <p class="muted" id="no-teachers">⏳ Se încarcă…</p>
+        </div>
+      </div>
+
+      <div class="card" id="pending-card" hidden>
+        <h2>⏳ Conturi care se vor șterge</h2>
+        <p class="muted">Profesori șterși al căror email încă există. Contul se șterge singur prima dată
+          când profesorul încearcă să intre (sau îl poți șterge acum din Firebase Console → Authentication → Users).</p>
+        <ul class="pending-list" id="pending-list"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Toate clasele</h2>
+        <div class="table-wrap">
+          <table class="table cards">
+            <thead><tr><th>Clasă</th><th>Cod</th><th>Profesor</th><th>Creată</th><th></th></tr></thead>
+            <tbody id="classes-body"></tbody>
+          </table>
+        </div>
+        <p class="muted" id="no-all-classes">⏳ Se încarcă…</p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

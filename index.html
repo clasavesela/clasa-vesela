@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Matematică Veselă – Clasa a II-a</title>
+  <meta name="description" content="Exerciții de adunare, scădere și tabla înmulțirii pentru clasa a II-a, generate automat, cu puncte pentru fiecare copil.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧮</text></svg>">
+</head>
+<body>
+  <header class="topbar">
+    <button class="logo" id="logo-btn" type="button">🧮 <span>Matematică Veselă</span></button>
+    <div class="who" id="who" hidden>
+      <span class="who-avatar" id="who-avatar"></span>
+      <span class="who-name" id="who-name"></span>
+      <span class="who-points">⭐ <b id="who-points">0</b></span>
+      <button class="btn small ghost" id="switch-btn" type="button" aria-label="Schimbă copilul">Schimbă<span class="hide-sm"> copilul</span></button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ ECRAN: PROFILURI ============ -->
+    <section class="screen" id="screen-profiles" hidden>
+      <h1>Bun venit! 👋</h1>
+
+      <form class="card class-card" id="class-form" autocomplete="off">
+        <h2>🏫 Intră cu codul clasei</h2>
+        <p class="muted">Ca să poți exersa, ai nevoie de codul primit de la doamna învățătoare sau domnul învățător.</p>
+        <div class="code-row">
+          <input type="text" id="class-code" class="code-input" maxlength="10" placeholder="ex: ALBINE7" autocapitalize="characters" spellcheck="false">
+          <button class="btn primary big" type="submit" id="class-go">Intră</button>
+        </div>
+        <p class="error" id="class-error" hidden></p>
+        <p class="muted small-text" id="class-off" hidden>Site-ul nu este încă activat. Revino mai târziu.</p>
+      </form>
+
+    </section>
+
+    <!-- ============ ECRAN: ALEGE NUMELE DIN CLASĂ ============ -->
+    <section class="screen" id="screen-class" hidden>
+      <div class="sheet-head">
+        <button class="btn small ghost" id="class-back" type="button">← Altă clasă</button>
+        <h1 id="class-title">Clasa</h1>
+      </div>
+      <p class="muted center">Apasă pe numele tău:</p>
+      <div class="student-grid" id="student-grid"></div>
+      <p class="muted center" id="no-students" hidden>Încă nu sunt elevi în această clasă. Roagă-l pe profesor să te adauge.</p>
+    </section>
+
+    <!-- ============ ECRAN: SE ÎNCARCĂ ============ -->
+    <section class="screen" id="screen-loading" hidden>
+      <p class="loading">⏳ Se încarcă…</p>
+    </section>
+
+    <!-- ============ ECRAN: MENIU ============ -->
+    <section class="screen" id="screen-menu" hidden>
+      <h1 id="greeting">Bună!</h1>
+      <p class="class-line" id="class-line" hidden></p>
+
+      <div class="rank card">
+        <div class="rank-top">
+          <span class="rank-icon" id="rank-icon">🌱</span>
+          <div>
+            <div class="rank-name" id="rank-name">Începător</div>
+            <div class="muted small-text" id="rank-next"></div>
+          </div>
+        </div>
+        <div class="progress"><div class="progress-bar" id="rank-bar"></div></div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><b id="st-points">0</b><span>puncte</span></div>
+        <div class="stat"><b id="st-sheets">0</b><span>fișe rezolvate</span></div>
+        <div class="stat"><b id="st-percent">–</b><span>răspunsuri corecte</span></div>
+        <div class="stat"><b id="st-perfect">0</b><span>fișe perfecte</span></div>
+      </div>
+
+      <h2 class="section-title">Ce vrei să exersezi?</h2>
+      <div class="topics">
+        <div class="topic card add">
+          <h3>➕ Adunări</h3>
+
+          <div class="group">
+            <div class="group-title">Fără trecere peste ordin</div>
+            <div class="group-example">ex: 23 + 45</div>
+            <p class="group-hint">Numere până la:</p>
+            <div class="choices levels">
+              <button class="btn choice" data-type="add" data-carry="0" data-level="1">20<small>×1</small></button>
+              <button class="btn choice" data-type="add" data-carry="0" data-level="2">100<small>×2</small></button>
+              <button class="btn choice" data-type="add" data-carry="0" data-level="3">1000<small>×3</small></button>
+            </div>
+          </div>
+
+          <div class="group">
+            <div class="group-title">Cu trecere peste ordin</div>
+            <div class="group-example">ex: 27 + 45</div>
+            <p class="group-hint">Numere până la:</p>
+            <div class="choices levels">
+              <button class="btn choice" data-type="add" data-carry="1" data-level="1">20<small>×2</small></button>
+              <button class="btn choice" data-type="add" data-carry="1" data-level="2">100<small>×3</small></button>
+              <button class="btn choice" data-type="add" data-carry="1" data-level="3">1000<small>×4</small></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="topic card sub">
+          <h3>➖ Scăderi</h3>
+
+          <div class="group">
+            <div class="group-title">Fără împrumut</div>
+            <div class="group-example">ex: 68 − 25</div>
+            <p class="group-hint">Numere până la:</p>
+            <div class="choices levels">
+              <button class="btn choice" data-type="sub" data-carry="0" data-level="1">20<small>×1</small></button>
+              <button class="btn choice" data-type="sub" data-carry="0" data-level="2">100<small>×2</small></button>
+              <button class="btn choice" data-type="sub" data-carry="0" data-level="3">1000<small>×3</small></button>
+            </div>
+          </div>
+
+          <div class="group">
+            <div class="group-title">Cu împrumut</div>
+            <div class="group-example">ex: 62 − 25</div>
+            <p class="group-hint">Numere până la:</p>
+            <div class="choices levels">
+              <button class="btn choice" data-type="sub" data-carry="1" data-level="1">20<small>×2</small></button>
+              <button class="btn choice" data-type="sub" data-carry="1" data-level="2">100<small>×3</small></button>
+              <button class="btn choice" data-type="sub" data-carry="1" data-level="3">1000<small>×4</small></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="topic card mul">
+          <h3>✖️ Tabla înmulțirii</h3>
+          <p class="muted">Alege o tablă sau amestecă-le pe toate:</p>
+          <div class="choices tables" id="table-choices"></div>
+          <button class="btn choice wide" data-type="mul" data-table="all">🎲 Toate amestecate <small>×2</small></button>
+        </div>
+      </div>
+
+      <div class="card comper-card" id="comper-card">
+        <h2>🏆 Exersare Comper<span id="comper-grade"></span></h2>
+        <p class="muted">Teste cu 10 probleme de concurs, cu câte 4 variante de răspuns, potrivite clasei tale.
+          Partea I e ușoară, partea a III-a e de gândit! 🧠</p>
+        <button class="btn primary big" id="comper-start" type="button" hidden>Începe un test Comper 🚀</button>
+        <p class="muted small-text" id="comper-off" hidden>Testele Comper vor apărea după ce este setată clasa (pregătitoare – a IV-a) pentru profesorul tău.</p>
+      </div>
+
+      <div class="card">
+        <h2>Ultimele fișe</h2>
+        <p class="muted" id="no-history">Nu ai rezolvat încă nicio fișă.</p>
+        <ul class="history" id="history"></ul>
+      </div>
+    </section>
+
+    <!-- ============ ECRAN: EXERCIȚII ============ -->
+    <section class="screen" id="screen-exercise" hidden>
+      <div class="sheet-head">
+        <button class="btn small ghost" id="back-btn" type="button">← Înapoi</button>
+        <h1 id="sheet-title">Fișă</h1>
+      </div>
+      <p class="muted center" id="sheet-hint">Completează căsuțele goale, apoi apasă <b>Verifică</b>.</p>
+
+      <div class="sheet" id="sheet"></div>
+
+      <p class="message" id="sheet-msg" hidden></p>
+
+      <div class="center" id="check-wrap">
+        <button class="btn primary big" id="check-btn" type="button">✅ Verifică</button>
+      </div>
+
+      <div class="result card" id="result" hidden>
+        <div class="stars" id="result-stars"></div>
+        <h2 id="result-title"></h2>
+        <p id="result-text"></p>
+        <p class="points-won" id="result-points"></p>
+        <p class="rank-up" id="result-rankup" hidden></p>
+        <p class="save-status" id="save-status" hidden></p>
+        <div class="result-actions">
+          <button class="btn primary big" id="again-btn" type="button">🔄 Fișă nouă</button>
+          <button class="btn big ghost" id="menu-btn" type="button">🏠 Meniu</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+
+  <footer class="footer">
+    <a href="profesor.html">Pentru profesori →</a>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
