@@ -1,5 +1,5 @@
 // Încarcă Firebase doar când e nevoie (modul „exersez singur” merge și fără).
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig, RECAPTCHA_KEY } from './firebase-config.js';
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 
@@ -23,6 +23,14 @@ export function fb(appName) {
       const app = appName
         ? appMod.initializeApp(firebaseConfig, appName)
         : appMod.initializeApp(firebaseConfig);
+      // App Check trebuie pornit înainte de Firestore / Auth
+      if (RECAPTCHA_KEY) {
+        const acMod = await import(SDK + 'firebase-app-check.js');
+        acMod.initializeAppCheck(app, {
+          provider: new acMod.ReCaptchaEnterpriseProvider(RECAPTCHA_KEY),
+          isTokenAutoRefreshEnabled: true
+        });
+      }
       const auth = authMod.getAuth(app);
       const db = fsMod.getFirestore(app);
       return { appMod, authMod, fsMod, app, auth, db };
