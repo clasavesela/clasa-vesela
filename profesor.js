@@ -216,7 +216,23 @@ function listenClasses() {
   });
 }
 
+// Câte clase are voie să creeze profesorul (setat de administrator; 5 dacă lipsește).
+function classLimit() {
+  return teacher && Number.isInteger(teacher.maxClasses) ? teacher.maxClasses : 5;
+}
+
+function renderLimit() {
+  const max = classLimit();
+  const full = classes.length >= max;
+  $('#class-limit').textContent = 'Clase create: ' + classes.length + ' din ' + max + ' permise.';
+  $('#class-limit').classList.toggle('error', full);
+  $('#class-full').hidden = !full;
+  $('#new-class-name').disabled = full;
+  $('#new-class-btn').disabled = full;
+}
+
 function renderClasses() {
+  renderLimit();
   const list = $('#class-list');
   list.innerHTML = '';
   $('#no-classes').hidden = classes.length > 0;
@@ -255,13 +271,21 @@ $('#new-class-form').addEventListener('submit', async (e) => {
   const err = $('#class-error');
   err.hidden = true;
   if (!name) return;
-  const { doc, getDoc, setDoc, serverTimestamp } = F.fsMod;
+  if (classes.length >= classLimit()) {
+    err.textContent = 'Ai ajuns la numărul maxim de clase (' + classLimit() + '). Contactează administratorul dacă ai nevoie de mai multe.';
+    err.hidden = false;
+    return;
+  }
+  const { doc, getDoc, writeBatch, increment, serverTimestamp } = F.fsMod;
   try {
     for (let i = 0; i < 8; i++) {
       const code = genCode();
       const ref = doc(F.db, 'classes', code);
       if ((await getDoc(ref)).exists()) continue; // cod deja folosit
-      await setDoc(ref, {
+      // clasa și numărătoarea de clase a profesorului se scriu împreună (regulile verifică limita)
+      const batch = writeBatch(F.db);
+      batch.update(doc(F.db, 'teachers', user.uid), { classCount: increment(1), classOp: code });
+      batch.set(ref, {
         name,
         teacherUid: user.uid,
         teacherName: teacher.name || user.email,
@@ -269,6 +293,7 @@ $('#new-class-form').addEventListener('submit', async (e) => {
         gradeYear: Number.isInteger(teacher.gradeYear) ? teacher.gradeYear : null,
         createdAt: serverTimestamp()
       });
+      await batch.commit();
       $('#new-class-name').value = '';
       selectClass(code);
       return;
@@ -323,7 +348,13 @@ $('#delete-class').addEventListener('click', async () => {
     const studs = await getDocs(collection(F.db, 'classes', code, 'students'));
     for (const s of studs.docs) await deleteStudentDocs(code, s.id);
     selectClass(null);
-    await deleteDoc(doc(F.db, 'classes', code));
+    // ștergerea clasei eliberează un loc din limita de clase
+    const { writeBatch, increment } = F.fsMod;
+    const batch = writeBatch(F.db);
+    const count = Number.isInteger(teacher.classCount) ? teacher.classCount : 0;
+    batch.update(doc(F.db, 'teachers', user.uid), { classCount: count > 0 ? increment(-1) : 0, classOp: code });
+    batch.delete(doc(F.db, 'classes', code));
+    await batch.commit();
   } catch (e) {
     console.error(e);
     tell(authError(e), 'Eroare');

@@ -768,3 +768,7 @@ img, svg, video { max-width: 100%; height: auto; }
   .table.cards tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .table.cards tr { margin-bottom: 0; }
 }
+
+/* limita de clase a profesorului (consola de admin) */
+.max-cell { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.max-input { width: 4.2em; padding: 4px 6px; font: inherit; border: 2px solid var(--border); border-radius: 8px; }

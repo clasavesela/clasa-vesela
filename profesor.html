@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Profesor – Matematică Veselă</title>
+  <title>Profesor – Clasa Veselă</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧑‍🏫</text></svg>">
 </head>
 <body class="staff">
   <header class="topbar">
-    <a class="logo" href="index.html">🧮 <span>Matematică Veselă · Profesor</span></a>
+    <a class="logo" href="index.html">🧮 <span>Clasa Veselă · Profesor</span></a>
     <div class="who" id="who" hidden>
       <span class="who-name" id="who-name"></span>
       <button class="btn small ghost" id="pass-btn" type="button" aria-label="Schimbă parola"><span class="hide-sm">Schimbă parola</span><span class="show-sm">🔑 Parola</span></button>
@@ -56,10 +56,12 @@
           <h2>Clasele mele</h2>
           <ul class="class-list" id="class-list"></ul>
           <p class="muted small-text" id="no-classes">Nu ai încă nicio clasă.</p>
+          <p class="muted small-text mt" id="class-limit"></p>
           <form id="new-class-form" class="mt" autocomplete="off">
             <label class="field"><span>Clasă nouă</span><input type="text" id="new-class-name" maxlength="60" placeholder="ex: Clasa a II-a B" required></label>
             <p class="error" id="class-error" hidden></p>
-            <button class="btn primary full" type="submit">➕ Creează clasa</button>
+            <p class="muted small-text" id="class-full" hidden>Ai ajuns la numărul maxim de clase. Dacă ai nevoie de mai multe, contactează administratorul.</p>
+            <button class="btn primary full" type="submit" id="new-class-btn">➕ Creează clasa</button>
           </form>
         </aside>
 

@@ -99,11 +99,17 @@ $('#new-teacher-form').addEventListener('submit', async (e) => {
   const email = $('#t-email').value.trim();
   const pass = $('#t-pass').value;
   const grade = parseInt($('#t-grade').value, 10);
+  const maxClasses = Number($('#t-max').value);
   const err = $('#t-error');
   const done = $('#t-done');
   err.hidden = true;
   if (!isGrade(grade)) {
     err.textContent = 'Alege clasa la care predă profesorul.';
+    err.hidden = false;
+    return;
+  }
+  if (!isMaxClasses(maxClasses)) {
+    err.textContent = 'Numărul maxim de clase trebuie să fie un număr întreg între 0 și 100.';
     err.hidden = false;
     return;
   }
@@ -142,12 +148,13 @@ $('#new-teacher-form').addEventListener('submit', async (e) => {
   if (uid) {
     try {
       await fsMod.setDoc(fsMod.doc(F.db, 'teachers', uid), {
-        name, email, grade, gradeYear: schoolYear(), active: true, createdAt: fsMod.serverTimestamp()
+        name, email, grade, gradeYear: schoolYear(), maxClasses, classCount: 0,
+        active: true, createdAt: fsMod.serverTimestamp()
       });
       const link = new URL('profesor.html', location.href).href;
       done.innerHTML = '';
       done.append(
-        el('b', { text: '✅ Cont creat pentru ' + name + ' (' + gradeLabel(grade) + ').' }),
+        el('b', { text: '✅ Cont creat pentru ' + name + ' (' + gradeLabel(grade) + ', maxim ' + maxClasses + (maxClasses === 1 ? ' clasă' : ' clase') + ').' }),
         el('div', { text: 'Trimite-i profesorului (pe un canal privat):' }),
         el('div', null, 'Pagina: ', el('a', { href: link, target: '_blank', text: link })),
         el('div', null, 'Email: ', el('code', { text: email })),
@@ -193,7 +200,7 @@ function render() {
       el('td', { class: 'cell-title' }, el('b', { text: t.name || '–' })),
       el('td', { 'data-label': 'Email', class: 'cell-wrap', text: t.email || '–' }),
       el('td', { 'data-label': 'Clasa (Comper)' }, el('div', { class: 'grade-cell' }, gradeSelect(t), gradeNote(t))),
-      el('td', { 'data-label': 'Clase', text: String(counts[t.uid] || 0) }),
+      el('td', { 'data-label': 'Clase (create / maxim)' }, maxCell(t, counts[t.uid] || 0)),
       el('td', { 'data-label': 'Stare' }, el('span', { class: 'pill ' + (t.active ? 'on' : 'off'), text: t.active ? 'Activ' : 'Dezactivat' })),
       el('td', { 'data-label': 'Creat', text: fmtWhen(t.createdAt) }),
       el('td', { class: 'actions' },
@@ -219,6 +226,49 @@ function render() {
         el('button', { type: 'button', class: 'btn small ghost danger', onclick: () => deleteClass(c) }, 'Șterge'))
     ));
   });
+}
+
+// ================== Limita de clase ==================
+const DEFAULT_MAX_CLASSES = 5; // aceeași valoare implicită ca în firestore.rules
+
+function isMaxClasses(n) {
+  return Number.isInteger(n) && n >= 0 && n <= 100;
+}
+
+function teacherMax(t) {
+  return isMaxClasses(t.maxClasses) ? t.maxClasses : DEFAULT_MAX_CLASSES;
+}
+
+function maxCell(t, count) {
+  const input = el('input', {
+    type: 'number', min: '0', max: '100', step: '1', class: 'max-input',
+    'aria-label': 'Număr maxim de clase pentru ' + (t.name || '')
+  });
+  input.value = String(teacherMax(t));
+  input.addEventListener('change', () => setMaxClasses(t, Number(input.value), input));
+  return el('div', { class: 'max-cell' },
+    el('span', { class: count >= teacherMax(t) ? 'pill off' : 'pill on', text: String(count) }),
+    el('span', { text: ' / ' }), input);
+}
+
+async function setMaxClasses(t, n, input) {
+  const back = () => { input.value = String(teacherMax(t)); };
+  if (!isMaxClasses(n)) { back(); tell('Scrie un număr întreg între 0 și 100.', 'Număr greșit'); return; }
+  if (n === teacherMax(t)) return;
+  const count = classes.filter((c) => c.teacherUid === t.uid).length;
+  if (n < count && !(await ask({
+    title: 'Limită mai mică decât clasele existente',
+    text: t.name + ' are deja ' + count + (count === 1 ? ' clasă' : ' clase') + '. Clasele existente rămân, ' +
+      'dar nu va mai putea crea altele până nu scade sub ' + n + '.',
+    okLabel: 'Setează ' + n
+  }))) { back(); return; }
+  try {
+    await F.fsMod.updateDoc(F.fsMod.doc(F.db, 'teachers', t.uid), { maxClasses: n });
+  } catch (e) {
+    console.error(e);
+    back();
+    tell(authError(e), 'Eroare');
+  }
 }
 
 // Clasa de acum a profesorului (ținând cont de trecerea automată din septembrie).
@@ -285,6 +335,12 @@ async function syncGrades() {
   const batch = writeBatch(F.db);
   let n = 0;
   teachers.forEach((t) => {
+    // numărătoarea de clase folosită de reguli pentru limită + limita implicită pentru conturile vechi
+    const count = classes.filter((c) => c.teacherUid === t.uid).length;
+    const fix = {};
+    if (t.classCount !== count) fix.classCount = count;
+    if (!isMaxClasses(t.maxClasses)) fix.maxClasses = Math.max(DEFAULT_MAX_CLASSES, count);
+    if (Object.keys(fix).length) { batch.update(doc(F.db, 'teachers', t.uid), fix); n++; }
     if (!isGrade(t.grade)) return;
     let year = Number.isInteger(t.gradeYear) ? t.gradeYear : null;
     if (t.active && year === null) {
@@ -335,15 +391,20 @@ async function toggleActive(t) {
 // ================== Ștergere ==================
 // Șterge o clasă cu tot ce e în ea (elevi + fișe). Firestore nu șterge singur
 // sub-colecțiile, așa că le parcurgem noi.
-async function deleteClassDeep(code) {
-  const { collection, getDocs, doc, deleteDoc } = F.fsMod;
+async function deleteClassDeep(code, teacherUid) {
+  const { collection, getDocs, doc, deleteDoc, writeBatch, increment } = F.fsMod;
   const studs = await getDocs(collection(F.db, 'classes', code, 'students'));
   for (const s of studs.docs) {
     const res = await getDocs(collection(s.ref, 'results'));
     for (const r of res.docs) await deleteDoc(r.ref);
     await deleteDoc(s.ref);
   }
-  await deleteDoc(doc(F.db, 'classes', code));
+  // dacă profesorul mai există, îi eliberăm un loc din limita de clase
+  const t = teacherUid && teachers.find((x) => x.uid === teacherUid);
+  const batch = writeBatch(F.db);
+  if (t) batch.update(doc(F.db, 'teachers', t.uid), { classCount: (t.classCount || 0) > 0 ? increment(-1) : 0 });
+  batch.delete(doc(F.db, 'classes', code));
+  await batch.commit();
   return studs.size;
 }
 
@@ -417,7 +478,7 @@ async function deleteClass(c) {
   if (!ok) return;
   setBusy(true, '⏳ Șterg clasa ' + c.name + '…');
   try {
-    await deleteClassDeep(c.code);
+    await deleteClassDeep(c.code, c.teacherUid);
   } catch (e) {
     console.error(e);
     tell(authError(e), 'Eroare');

@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // =====================================================================
-//  Reguli de securitate – Matematică Veselă
+//  Reguli de securitate – Clasa Veselă
 //  UID-ul de administrator e deja pus mai jos (funcția isAdmin).
 //  Lipește tot fișierul în Firebase Console → Firestore → Rules → Publish.
 //
@@ -9,7 +9,7 @@ rules_version = '2';
 //   • administrator (un singur UID): creează / activează / dezactivează profesori,
 //     vede tot.
 //   • profesor (are document activ în /teachers, creat DOAR de administrator):
-//     își creează clase, adaugă / șterge elevi, vede fișele elevilor lui.
+//     își creează clase (cel mult câte i-a permis administratorul – maxClasses), adaugă / șterge elevi, vede fișele elevilor lui.
 //   • copil (autentificat anonim): citește clasa al cărei cod îl știe și lista
 //     de nume, și își poate adăuga puncte doar prin trimiterea unei fișe.
 // =====================================================================
@@ -33,6 +33,16 @@ service cloud.firestore {
     function ownsClass(code) {
       return isTeacher()
         && get(/databases/$(database)/documents/classes/$(code)).data.teacherUid == request.auth.uid;
+    }
+
+    // Limita de clase: odată cu clasa nouă, profesorul crește classCount cu 1 (în aceeași
+    // scriere), iar noua valoare nu poate depăși maxClasses (5 dacă nu a fost setat).
+    function withinClassLimit() {
+      let path = /databases/$(database)/documents/teachers/$(request.auth.uid);
+      let before = get(path).data;
+      let after = getAfter(path).data;
+      return after.get('classCount', 0) == before.get('classCount', 0) + 1
+        && after.get('classCount', 0) <= before.get('maxClasses', 5);
     }
 
     // Copilul trimite o fișă: punctele pot crește doar cu cât se poate câștiga
@@ -77,11 +87,29 @@ service cloud.firestore {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
       // grade = clasa la care predă (0 = pregătitoare … 4 = a IV-a), folosită pentru Comper;
       // gradeYear = anul școlar în care a fost setată (de acolo crește singură în fiecare septembrie)
+      // maxClasses = câte clase are voie să creeze profesorul (setat doar de administrator)
       allow create, update: if isAdmin()
         && (!('grade' in request.resource.data)
             || (request.resource.data.grade is int && request.resource.data.grade >= 0 && request.resource.data.grade <= 4))
         && (!('gradeYear' in request.resource.data) || request.resource.data.gradeYear == null
-            || request.resource.data.gradeYear is int);
+            || request.resource.data.gradeYear is int)
+        && (!('maxClasses' in request.resource.data)
+            || (request.resource.data.maxClasses is int
+                && request.resource.data.maxClasses >= 0 && request.resource.data.maxClasses <= 100));
+      // Profesorul își poate modifica doar numărătoarea de clase (classCount), odată cu
+      // crearea / ștergerea unei clase. Scăderea e permisă doar dacă în aceeași scriere
+      // se șterge chiar o clasă a lui (classOp = codul ei), ca să nu poată ocoli limita.
+      allow update: if isTeacher() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classCount', 'classOp'])
+        && request.resource.data.classCount is int
+        && (request.resource.data.classCount == resource.data.get('classCount', 0) + 1
+            || (request.resource.data.classOp is string
+                && exists(/databases/$(database)/documents/classes/$(request.resource.data.classOp))
+                && get(/databases/$(database)/documents/classes/$(request.resource.data.classOp)).data.teacherUid == uid
+                && !existsAfter(/databases/$(database)/documents/classes/$(request.resource.data.classOp))
+                && ((resource.data.get('classCount', 0) > 0
+                     && request.resource.data.classCount == resource.data.get('classCount', 0) - 1)
+                    || (resource.data.get('classCount', 0) <= 0 && request.resource.data.classCount == 0))));
       allow delete: if isAdmin();
     }
 
@@ -110,7 +138,8 @@ service cloud.firestore {
            == get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.get('gradeYear', null)
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
-        && request.resource.data.name.size() <= 60;
+        && request.resource.data.name.size() <= 60
+        && withinClassLimit();
       allow update: if isAdmin()
         || (isTeacher() && resource.data.teacherUid == request.auth.uid
             && request.resource.data.teacherUid == request.auth.uid
