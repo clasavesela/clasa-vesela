@@ -2,6 +2,13 @@
 
 export const $ = (sel, root) => (root || document).querySelector(sel);
 
+// Protecție împotriva încărcării paginii într-un iframe pe alt site (clickjacking).
+// GitHub Pages nu permite antetul X-Frame-Options, așa că o facem aici.
+if (window.top !== window.self) {
+  document.documentElement.style.display = 'none';
+  try { window.top.location = window.self.location.href; } catch (e) { /* blocat de browser */ }
+}
+
 // Construiește elemente fără innerHTML (textul e mereu tratat ca text, nu cod).
 export function el(tag, props, ...kids) {
   const e = document.createElement(tag);

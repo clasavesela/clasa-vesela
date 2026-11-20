@@ -21,6 +21,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // cont cu email și parolă (nu copil autentificat anonim)
+    function hasEmailAccount() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
     function isAdmin() {
       return signedIn() && request.auth.uid == 'h57UZDmgtMYmOu9CJG3CSZP2qeU2';
     }
@@ -45,28 +50,41 @@ service cloud.firestore {
         && after.get('classCount', 0) <= before.get('maxClasses', 5);
     }
 
-    // Copilul trimite o fișă: punctele pot crește doar cu cât se poate câștiga
-    // pe o fișă (max 10 × 10 × 4 + 50 = 450), iar fișele cresc exact cu 1.
+    // Copilul trimite o fișă:
+    //  • fișele cresc exact cu 1, cu 1–10 răspunsuri, dintre care cel mult toate corecte;
+    //  • punctele cresc cu cel mult 40 pe răspuns corect (nivelul maxim) + 50 bonus,
+    //    iar bonusul (perfect + 1) se dă doar dacă toate răspunsurile sunt corecte;
+    //  • cel mult o fișă la 10 secunde pentru același elev (oprește trimiterile automate).
     function validSheetUpdate() {
       let d = request.resource.data;
       let o = resource.data;
+      let dc = d.correct - o.correct;
+      let da = d.answered - o.answered;
+      let dperf = d.perfect - o.perfect;
       return signedIn()
         && d.diff(o).affectedKeys().hasOnly(
              ['points', 'sheets', 'perfect', 'correct', 'answered', 'recent', 'lastLabel', 'lastActive'])
         && d.sheets == o.sheets + 1
-        && d.points is int && d.points >= o.points && d.points <= o.points + 450
-        && d.correct is int && d.correct >= o.correct && d.correct <= o.correct + 10
-        && d.answered is int && d.answered >= o.answered + 1 && d.answered <= o.answered + 10
-        && d.perfect is int && d.perfect >= o.perfect && d.perfect <= o.perfect + 1
+        && d.correct is int && d.answered is int && d.perfect is int && d.points is int
+        && da >= 1 && da <= 10
+        && dc >= 0 && dc <= da
+        && (dperf == 1) == (dc == da) && (dperf == 0 || dperf == 1)
+        && d.points >= o.points && d.points - o.points <= dc * 40 + dperf * 50
         && d.recent is list && d.recent.size() <= 10
         && d.lastLabel is string && d.lastLabel.size() <= 100
-        && d.lastActive == request.time;
+        && d.lastActive == request.time
+        && (o.get('lastActive', null) == null || request.time > o.lastActive + duration.value(10, 's'));
     }
 
+    // O fișă salvată trebuie să vină odată cu actualizarea punctelor elevului
+    // (aceeași tranzacție) și să aibă exact aceleași cifre.
     function validResult(code, sid) {
       let r = request.resource.data;
+      let path = /databases/$(database)/documents/classes/$(code)/students/$(sid);
+      let before = get(path).data;
+      let after = getAfter(path).data;
       return signedIn()
-        && exists(/databases/$(database)/documents/classes/$(code)/students/$(sid))
+        && exists(path)
         && r.keys().hasOnly(['date', 'label', 'type', 'correct', 'total', 'points', 'items'])
         && r.date == request.time
         && r.label is string && r.label.size() <= 100
@@ -74,12 +92,21 @@ service cloud.firestore {
         && r.total is int && r.total >= 1 && r.total <= 10
         && r.correct is int && r.correct >= 0 && r.correct <= r.total
         && r.points is int && r.points >= 0 && r.points <= 450
-        && r.items is list && r.items.size() <= 10;
+        && r.items is list && r.items.size() <= 10
+        && after.sheets == before.sheets + 1
+        && after.answered - before.answered == r.total
+        && after.correct - before.correct == r.correct
+        && after.points - before.points == r.points;
     }
 
     function validStudent(d) {
-      return d.name is string && d.name.size() >= 1 && d.name.size() <= 40
-        && d.points == 0 && d.sheets == 0 && d.perfect == 0 && d.correct == 0 && d.answered == 0;
+      return d.keys().hasOnly(['name', 'avatar', 'points', 'sheets', 'perfect', 'correct', 'answered',
+                               'recent', 'lastLabel', 'lastActive', 'createdAt'])
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 40
+        && d.avatar is string && d.avatar.size() <= 8
+        && d.points == 0 && d.sheets == 0 && d.perfect == 0 && d.correct == 0 && d.answered == 0
+        && d.recent == [] && d.lastLabel == '' && d.lastActive == null
+        && d.createdAt == request.time;
     }
 
     // ---------- Profesori: scrie doar administratorul ----------
@@ -118,7 +145,9 @@ service cloud.firestore {
     // propriul marcaj și și-l poate scoate / pune la loc când își șterge contul.
     match /deletedTeachers/{uid} {
       allow read, delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
-      allow create: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if isAdmin()
+        || (hasEmailAccount() && request.auth.uid == uid
+            && request.resource.data.keys().hasOnly(['email', 'name', 'deletedAt']));
       allow update: if isAdmin();
     }
 
@@ -131,6 +160,9 @@ service cloud.firestore {
       // clasa (pregătitoare – a IV-a, pentru Comper) vine din contul profesorului,
       // setat de administrator; profesorul nu o poate schimba
       allow create: if isTeacher()
+        && request.resource.data.keys().hasOnly(['name', 'teacherUid', 'teacherName', 'grade', 'gradeYear', 'createdAt'])
+        && request.resource.data.teacherName is string && request.resource.data.teacherName.size() <= 100
+        && request.resource.data.createdAt == request.time
         && request.resource.data.teacherUid == request.auth.uid
         && request.resource.data.get('grade', null)
            == get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.get('grade', null)
@@ -140,10 +172,8 @@ service cloud.firestore {
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 60
         && withinClassLimit();
-      allow update: if isAdmin()
-        || (isTeacher() && resource.data.teacherUid == request.auth.uid
-            && request.resource.data.teacherUid == request.auth.uid
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['grade', 'gradeYear']));
+      // doar administratorul modifică o clasă existentă (clasa Comper a profesorului)
+      allow update: if isAdmin();
       allow delete: if isAdmin() || (isTeacher() && resource.data.teacherUid == request.auth.uid);
 
       // ---------- Elevi ----------
@@ -151,7 +181,8 @@ service cloud.firestore {
         allow read: if signedIn();
         allow create: if (isAdmin() || ownsClass(code)) && validStudent(request.resource.data);
         allow delete: if isAdmin() || ownsClass(code);
-        allow update: if isAdmin() || ownsClass(code) || validSheetUpdate();
+        // profesorul nu modifică elevii (doar îi adaugă / șterge); copilul doar trimite fișe
+        allow update: if isAdmin() || validSheetUpdate();
 
         // ---------- Fișele rezolvate (cu răspunsurile copilului) ----------
         match /results/{rid} {

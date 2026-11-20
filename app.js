@@ -666,7 +666,9 @@ function saveToCloud(payload) {
     })
     .catch((e) => {
       console.error(e);
-      st.textContent = '⚠️ Nu s-a putut trimite fișa. ';
+      st.textContent = e && e.code === 'permission-denied'
+        ? '⚠️ Ai trimis prea repede. Așteaptă câteva secunde, apoi apasă din nou. '
+        : '⚠️ Nu s-a putut trimite fișa. ';
       st.classList.add('bad');
       const b = document.createElement('button');
       b.type = 'button';
